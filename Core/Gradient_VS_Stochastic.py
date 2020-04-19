@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from Core.algorithms import create_dataset as data
+from Core.algorithms import create_dataset as data, evaluate_vertical_errors
 from Core.algorithms import Gradient_Descent
 from Core.algorithms import SGD_v1
 
 
-def exp2(number_samples, coefficients, noise, initial_point, tolerance, learning_rate, path_output_folder, seed=None):
+def exp2(number_samples, coefficients, noise, initial_point, tolerance, learning_rate, path_output_folder,
+         path_folder_plot, seed=None):
     if seed is None:
         seed = 110395
 
@@ -22,10 +23,14 @@ def exp2(number_samples, coefficients, noise, initial_point, tolerance, learning
     os.makedirs(path_output_folder_SGD, exist_ok=False)
     details_GD = {"number_samples": [], "alpha": [], "beta": [], "time": [], "number_iteration": []}
     details_SGD = {"number_samples": [], "alpha": [], "beta": [], "time": [], "number_iteration": []}
+    final_report = {"dataset": [], "algorithm": [], "number_samples": [], "alpha": [], "beta": [],
+                    "vertical_errors": [],
+                    "absolute_vertical_errors": []}
     for each_num in number_samples:
         np.random.seed(seed=seed)
         fp = data(number_samples=each_num, omega=coefficients, noise=noise,
                   output_name=path_output_folder + filename_dataset + "_" + str(each_num))
+        d = np.load(fp)
         np.random.seed(seed=seed)
         approximations_GD = Gradient_Descent(filepath_data=fp, omega_zero=initial_point, lr=learning_rate,
                                              tolerance=tolerance,
@@ -43,6 +48,25 @@ def exp2(number_samples, coefficients, noise, initial_point, tolerance, learning
         details_SGD["time"].append(approximations_SGDv1[2])
         details_SGD["number_samples"].append(each_num)
         details_SGD["number_iteration"].append(approximations_SGDv1[3])
+        final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+        final_report["algorithm"].append("Gradient Descent")
+        final_report["number_samples"].append(each_num)
+        final_report["alpha"].append(approximations_GD[0])
+        final_report["beta"].append(approximations_GD[1])
+        final_report["vertical_errors"].append(
+            np.sum(evaluate_vertical_errors(d, alpha=approximations_GD[0], beta=approximations_GD[1])[0]))
+        final_report["absolute_vertical_errors"].append(
+            np.abs(np.sum(evaluate_vertical_errors(d, alpha=approximations_GD[0], beta=approximations_GD[1])[0])))
+        final_report["algorithm"].append("Stochastic Gradient Descent")
+        final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+        final_report["number_samples"].append(each_num)
+        final_report["alpha"].append(approximations_SGDv1[0])
+        final_report["beta"].append(approximations_SGDv1[1])
+        final_report["vertical_errors"].append(
+            np.sum(evaluate_vertical_errors(d, alpha=approximations_SGDv1[0], beta=approximations_SGDv1[1])[0]))
+        final_report["absolute_vertical_errors"].append(
+            np.abs(np.sum(evaluate_vertical_errors(d, alpha=approximations_SGDv1[0], beta=approximations_SGDv1[1])[0])))
+
     pd.DataFrame(details_GD).to_csv(path_output_folder + "GD.csv", index=True, header=True)
     pd.DataFrame(details_SGD).to_csv(path_output_folder + "SGD.csv", index=True, header=True)
 
@@ -243,5 +267,6 @@ def exp2(number_samples, coefficients, noise, initial_point, tolerance, learning
     fig4.tight_layout()
     plt.savefig(path_output_folder + "error_of_approximations_SGD.png")
     plt.close(fig=fig4)
-
+    pd.DataFrame(final_report).to_csv(path_folder_plot + path_output_folder.replace("/", "") + ".csv", index=False,
+                                      header=True)
     return

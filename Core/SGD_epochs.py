@@ -3,13 +3,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from Core.algorithms import create_dataset as data
+from Core.algorithms import create_dataset as data, evaluate_vertical_errors
 from Core.algorithms import SGD_v3
 from Core.algorithms import SGD_v4
 
 
 def exp4(number_samples, coefficients, noise, initial_point, number_epochs, learning_rate, batch_size,
-         path_output_folder, seed=None):
+         path_output_folder, path_folder_plot, seed=None):
     if seed is None:
         seed = 110395
 
@@ -21,12 +21,16 @@ def exp4(number_samples, coefficients, noise, initial_point, number_epochs, lear
     os.makedirs(path_output_folder_SGD_1, exist_ok=False)
     os.makedirs(path_output_folder_SGD_2, exist_ok=False)
 
+    final_report = {"dataset": [], "algorithm": [], "number_samples": [], "epochs": [], "alpha": [], "beta": [],
+                    "vertical_errors": [],
+                    "absolute_vertical_errors": []}
     for each_num, each_size in zip(number_samples, batch_size):
         details_SGDOnline = {"number_samples": [], "alpha": [], "beta": [], "time": [], "epochs": []}
         details_SGDOnlineMinibatch = {"number_samples": [], "alpha": [], "beta": [], "time": [], "epochs": []}
         np.random.seed(seed=seed)
         fp = data(number_samples=each_num, omega=coefficients, noise=noise,
                   output_name=path_output_folder + filename_dataset + "_" + str(each_num))
+        d = np.load(fp)
         for ep in number_epochs:
             np.random.seed(seed=seed)
             approximations_SGD_Online = SGD_v3(filepath_data=fp, omega_zero=initial_point, lr=learning_rate, epochs=ep,
@@ -48,6 +52,29 @@ def exp4(number_samples, coefficients, noise, initial_point, number_epochs, lear
             details_SGDOnlineMinibatch["time"].append(approximations_SGD_OnlineMinibatch[2])
             details_SGDOnlineMinibatch["number_samples"].append(each_num)
             details_SGDOnlineMinibatch["epochs"].append(ep)
+
+            final_report["algorithm"].append("Stochastic Gradient Descent Online")
+            final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+            final_report["number_samples"].append(each_num)
+            final_report["epochs"].append(ep)
+            final_report["alpha"].append(approximations_SGD_Online[0])
+            final_report["beta"].append(approximations_SGD_Online[1])
+            final_report["vertical_errors"].append(np.sum(
+                evaluate_vertical_errors(d, alpha=approximations_SGD_Online[0], beta=approximations_SGD_Online[1])[0]))
+            final_report["absolute_vertical_errors"].append(np.abs(np.sum(
+                evaluate_vertical_errors(d, alpha=approximations_SGD_Online[0], beta=approximations_SGD_Online[1])[0])))
+            final_report["algorithm"].append("Stochastic Gradient Descent Online MiniBatch")
+            final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+            final_report["number_samples"].append(each_num)
+            final_report["epochs"].append(ep)
+            final_report["alpha"].append(approximations_SGD_OnlineMinibatch[0])
+            final_report["beta"].append(approximations_SGD_OnlineMinibatch[1])
+            final_report["vertical_errors"].append(np.sum(
+                evaluate_vertical_errors(d, alpha=approximations_SGD_OnlineMinibatch[0],
+                                         beta=approximations_SGD_OnlineMinibatch[1])[0]))
+            final_report["absolute_vertical_errors"].append(np.abs(np.sum(
+                evaluate_vertical_errors(d, alpha=approximations_SGD_OnlineMinibatch[0],
+                                         beta=approximations_SGD_OnlineMinibatch[1])[0])))
         pd.DataFrame(details_SGDOnline).to_csv(path_output_folder + "SGD_Online_" + str(each_num) + ".csv", index=True,
                                                header=True)
         pd.DataFrame(details_SGDOnlineMinibatch).to_csv(
@@ -96,7 +123,7 @@ def exp4(number_samples, coefficients, noise, initial_point, number_epochs, lear
                      label='alpha')
             plt.plot(np.arange(0, np.shape(sgd_online)[0]), sgd_online['w1'].values, linestyle='solid', color='blue',
                      label='beta')
-            plt.xticks(np.arange(0, np.shape(sgd_online)[0] + 1, step=np.shape(sgd_online)[0] / 100 * 10))
+            plt.xticks(np.arange(0, np.shape(sgd_online)[0], step=np.shape(sgd_online)[0] / 100 * 10))
             plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fancybox=True, ncol=2)
             alphagd = plt.Circle(xy=(np.shape(sgd_online)[0], sgd_online.values[-2:-1, 1:2][0][0]), radius=0.1,
                                  color='red',
@@ -181,16 +208,17 @@ def exp4(number_samples, coefficients, noise, initial_point, number_epochs, lear
             plt.close(fig=fig)
 
             # -----
-        fig2, ax2 = plt.subplots(1, 1, figsize=(14, 8))
+        fig2, ax2 = plt.subplots(1, 1, figsize=(10, 8))
         datapoints = np.load(path_output_folder + filename_dataset + "_" + str(x) + ".npy")
         plt.title("Distribution of " + str(x) + " Points")
-        plt.scatter(datapoints[:, 0], datapoints[:, 1], marker="*", color='red', label='Perturbed Points')
+        plt.scatter(datapoints[:, 0], datapoints[:, 1], marker=".", color='red', label='Perturbed Points',
+                    linewidths=6.0)
         plt.scatter(datapoints[:, 0],
                     coefficients[0] * datapoints[:, 0] + coefficients[1] * np.ones(
                         shape=(np.shape(datapoints)[0]),
                         dtype=float), marker='*',
                     color='green',
-                    label='Real Points')
+                    label='Real Points', alpha=0.4, linewidths=1.0)
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fancybox=True, ncol=2)
         plt.tight_layout()
         plt.savefig(path_output_folder + "distribution_points_" + str(x) + ".png", bbox_inches="tight", dpi=200)
@@ -251,5 +279,6 @@ def exp4(number_samples, coefficients, noise, initial_point, number_epochs, lear
         plt.tight_layout()
         plt.savefig(path_output_folder + "ErrorApproximations_SGD_OnlineMinibatch_" + str(x) + ".png")
         plt.close(fig=fig4)
-
-    return
+    pd.DataFrame(final_report).to_csv(path_folder_plot + path_output_folder.replace("/", "") + ".csv", index=False,
+                                      header=True)
+    return final_report

@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 
 from Core.algorithms import create_dataset as data
 from Core.algorithms import Gradient_Descent
+from Core.algorithms import evaluate_vertical_errors
 
 
-def exp1(number_samples, coefficients, noise, initial_point, tolerance, learning_rate, path_output_folder, seed=None):
+def exp1(number_samples, coefficients, noise, initial_point, tolerance, learning_rate, path_output_folder,
+         path_folder_plot, seed=None):
     if seed is None:
         seed = 110395
 
@@ -16,19 +18,33 @@ def exp1(number_samples, coefficients, noise, initial_point, tolerance, learning
     path_output_folder += "/"
     os.makedirs(path_output_folder, exist_ok=False)
     details = {"number_samples": [], "alpha": [], "beta": [], "time": [], "number_iteration": []}
-    
+    final_report = {"dataset": [], "algorithm": [], "number_samples": [], "alpha": [], "beta": [],
+                    "vertical_errors": [],
+                    "absolute_vertical_errors": []}
     for each_num in number_samples:
         np.random.seed(seed=seed)
         fp = data(number_samples=each_num, omega=coefficients, noise=noise,
                   output_name=path_output_folder + "/" + filename_dataset + "_" + str(each_num))
         np.random.seed(seed=seed)
-        approximations_GD = Gradient_Descent(filepath_data=fp, omega_zero=initial_point, lr=learning_rate, tolerance=tolerance,
+        approximations_GD = Gradient_Descent(filepath_data=fp, omega_zero=initial_point, lr=learning_rate,
+                                             tolerance=tolerance,
                                              output_info=path_output_folder + "Report_GD" + "_" + str(each_num))
         details["alpha"].append(approximations_GD[0])
         details["beta"].append(approximations_GD[1])
         details["time"].append(approximations_GD[2])
         details["number_samples"].append(each_num)
         details["number_iteration"].append(approximations_GD[3])
+        final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+        final_report["algorithm"].append("Gradient Descent")
+        final_report["number_samples"].append(each_num)
+        final_report["alpha"].append(approximations_GD[0])
+        final_report["beta"].append(approximations_GD[1])
+        print(type(approximations_GD[0]))
+        d = np.load(fp)
+        final_report["vertical_errors"].append(
+            np.sum(evaluate_vertical_errors(d, alpha=approximations_GD[0], beta=approximations_GD[1])[0]))
+        final_report["absolute_vertical_errors"].append(
+            np.abs(np.sum(evaluate_vertical_errors(d, alpha=approximations_GD[0], beta=approximations_GD[1])[0])))
 
     pd.DataFrame(details).to_csv(path_output_folder + "GD.csv", index=True, header=True)
     gd = pd.read_csv(path_output_folder + "GD.csv")
@@ -150,5 +166,6 @@ def exp1(number_samples, coefficients, noise, initial_point, tolerance, learning
     fig3.tight_layout()
     plt.savefig(path_output_folder + "error_of_approximations.png")
     plt.close(fig=fig3)
-
+    pd.DataFrame(final_report).to_csv(path_folder_plot + path_output_folder.replace("/", "") + ".csv", index=False,
+                                      header=True)
     return

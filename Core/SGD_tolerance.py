@@ -3,12 +3,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from Core.algorithms import create_dataset as data
+from Core.algorithms import create_dataset as data, evaluate_vertical_errors
 from Core.algorithms import SGD_v1
 from Core.algorithms import SGD_v2
 
 
 def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning_rate, batch_size, path_output_folder,
+         path_folder_plot,
          seed=None):
     if seed is None:
         seed = 110395
@@ -16,18 +17,22 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
     filename_dataset = "Dataset2D"
     path_output_folder += "/"
     os.makedirs(path_output_folder, exist_ok=False)
-    path_output_folder_SGD_1 = path_output_folder + "GDBasic/"
-    path_output_folder_SGD_2 = path_output_folder + "GDBatch/"
+    path_output_folder_SGD_1 = path_output_folder + "SGDBasic/"
+    path_output_folder_SGD_2 = path_output_folder + "SGDBatch/"
     os.makedirs(path_output_folder_SGD_1, exist_ok=False)
     os.makedirs(path_output_folder_SGD_2, exist_ok=False)
 
     details_SGDBasic = {"number_samples": [], "alpha": [], "beta": [], "time": [], "number_iteration": []}
     details_SGDBatch = {"number_samples": [], "alpha": [], "beta": [], "time": [], "number_iteration": []}
 
+    final_report = {"dataset": [], "algorithm": [], "number_samples": [], "alpha": [], "beta": [],
+                    "vertical_errors": [],
+                    "absolute_vertical_errors": []}
     for each_num, each_size in zip(number_samples, batch_size):
         np.random.seed(seed=seed)
         fp = data(number_samples=each_num, omega=coefficients, noise=noise,
                   output_name=path_output_folder + filename_dataset + "_" + str(each_num))
+        d = np.load(fp)
         np.random.seed(seed=seed)
         approximations_SGD_Basic = SGD_v1(filepath_data=fp, omega_zero=initial_point, lr=learning_rate,
                                           tolerance=tolerance,
@@ -49,6 +54,24 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         details_SGDBatch["time"].append(approximations_SGD_Batch[2])
         details_SGDBatch["number_samples"].append(each_num)
         details_SGDBatch["number_iteration"].append(approximations_SGD_Batch[3])
+        final_report["algorithm"].append("Stochastic Gradient Descent Basic")
+        final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+        final_report["number_samples"].append(each_num)
+        final_report["alpha"].append(approximations_SGD_Basic[0])
+        final_report["beta"].append(approximations_SGD_Basic[1])
+        final_report["vertical_errors"].append(
+            np.sum(evaluate_vertical_errors(d, alpha=approximations_SGD_Basic[0], beta=approximations_SGD_Basic[1])[0]))
+        final_report["absolute_vertical_errors"].append(np.abs(np.sum(
+            evaluate_vertical_errors(d, alpha=approximations_SGD_Basic[0], beta=approximations_SGD_Basic[1])[0])))
+        final_report["algorithm"].append("Stochastic Gradient Descent Batch")
+        final_report["dataset"].append(path_output_folder + filename_dataset + "_" + str(each_num))
+        final_report["number_samples"].append(each_num)
+        final_report["alpha"].append(approximations_SGD_Batch[0])
+        final_report["beta"].append(approximations_SGD_Batch[1])
+        final_report["vertical_errors"].append(
+            np.sum(evaluate_vertical_errors(d, alpha=approximations_SGD_Batch[0], beta=approximations_SGD_Batch[1])[0]))
+        final_report["absolute_vertical_errors"].append(np.abs(np.sum(
+            evaluate_vertical_errors(d, alpha=approximations_SGD_Batch[0], beta=approximations_SGD_Batch[1])[0])))
     pd.DataFrame(details_SGDBasic).to_csv(path_output_folder + "SGD_Basic.csv", index=True, header=True)
     pd.DataFrame(details_SGDBatch).to_csv(path_output_folder + "SGD_Batch.csv", index=True, header=True)
 
@@ -72,9 +95,9 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         ax.text(x=i - w / 2 - 0.05, y=sgd_basic['time'].values[i], s=sgd_basic['time'].values[i],
                 bbox=dict(facecolor='white', alpha=1),
                 color='black')
-    ax.text(x=i + w / 2 - 0.05, y=sgd_batch['time'].values[i], s=sgd_batch['time'].values[i],
-            bbox=dict(facecolor='white', alpha=1),
-            color='black')
+        ax.text(x=i + w / 2 - 0.05, y=sgd_batch['time'].values[i], s=sgd_batch['time'].values[i],
+                bbox=dict(facecolor='white', alpha=1),
+                color='black')
 
     plt.savefig(path_output_folder + "compares_histogram_time.png", bbox_inches="tight", dpi=200)
     plt.close(fig)
@@ -95,10 +118,10 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
                  s=sgd_basic['number_iteration'].values[i],
                  bbox=dict(facecolor='white', alpha=1),
                  color='black')
-    ax2.text(x=i + w / 2 - 0.05, y=sgd_batch['number_iteration'].values[i],
-             s=sgd_batch['number_iteration'].values[i],
-             bbox=dict(facecolor='white', alpha=1),
-             color='black')
+        ax2.text(x=i + w / 2 - 0.05, y=sgd_batch['number_iteration'].values[i],
+                 s=sgd_batch['number_iteration'].values[i],
+                 bbox=dict(facecolor='white', alpha=1),
+                 color='black')
 
     plt.savefig(path_output_folder + "compares_histogram_iteration.png", bbox_inches="tight", dpi=200)
     plt.close(fig2)
@@ -114,7 +137,6 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         plt.plot(np.arange(0, np.shape(sgd_basic)[0]), sgd_basic['w1'].values, linestyle='solid', color='blue',
                  label='beta')
         plt.xticks(np.arange(0, np.shape(sgd_basic)[0] + 1, step=np.shape(sgd_basic)[0] / 100 * 10))
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fancybox=True, ncol=2)
         alphagd = plt.Circle(xy=(np.shape(sgd_basic)[0], sgd_basic.values[-2:-1, 1:2][0][0]), radius=0.1, color='red',
                              lw=10)
         plt.gcf().gca().add_patch(alphagd)
@@ -140,6 +162,7 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         plt.hlines(coefficients[1], 0, np.shape(sgd_basic)[0], colors='purple', linestyles='solid',
                    label='Real beta',
                    linewidth=3)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), fancybox=True, ncol=2)
         plt.subplot(222)
         plt.title("Approximations Stochastic Gradient Descent Batch with " + str(x) + " samples")
         plt.plot(np.arange(0, np.shape(sgd_batch)[0]), sgd_batch['w0'].values, linestyle='solid', color='red',
@@ -231,9 +254,9 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         ax3.text(x=i - w, y=y_axis_a[i], s=round(y_axis_a[i], 4), fontsize=7,
                  bbox=dict(facecolor='white', alpha=1),
                  color='black')
-    ax3.text(x=i + w / 2, y=y_axis_b[i], s=round(y_axis_b[i], 4), fontsize=7,
-             bbox=dict(facecolor='white', alpha=1),
-             color='black')
+        ax3.text(x=i + w / 2, y=y_axis_b[i], s=round(y_axis_b[i], 4), fontsize=7,
+                 bbox=dict(facecolor='white', alpha=1),
+                 color='black')
     plt.title("Deviations from real coefficients alpha and beta - Stochastic Gradient Descent Basic")
     fig3.tight_layout()
     plt.savefig(path_output_folder + "error_of_approximations_SGD_Basic.png")
@@ -261,12 +284,13 @@ def exp3(number_samples, coefficients, noise, initial_point, tolerance, learning
         ax4.text(x=i - w, y=y_axis_a[i], s=round(y_axis_a[i], 4), fontsize=7,
                  bbox=dict(facecolor='white', alpha=1),
                  color='black')
-    ax4.text(x=i + w / 2, y=y_axis_b[i], s=round(y_axis_b[i], 4), fontsize=7,
-             bbox=dict(facecolor='white', alpha=1),
-             color='black')
+        ax4.text(x=i + w / 2, y=y_axis_b[i], s=round(y_axis_b[i], 4), fontsize=7,
+                 bbox=dict(facecolor='white', alpha=1),
+                 color='black')
     plt.title("Deviations from real coefficients alpha and beta - Stochastic Gradient Descent Batch")
     fig4.tight_layout()
     plt.savefig(path_output_folder + "error_of_approximations_SGD_Batch.png")
     plt.close(fig=fig4)
-
+    pd.DataFrame(final_report).to_csv(path_folder_plot + path_output_folder.replace("/", "") + ".csv", index=False,
+                                      header=True)
     return
